@@ -1,9 +1,16 @@
-const documents = [
-  { id: 1, title: 'Modul 1 - Pengenalan Web Dev.pdf', status: 'Siap', pages: 12 },
-  { id: 2, title: 'Slide Pertemuan 2 - Express.js MVC.pdf', status: 'Siap', pages: 25 },
-  { id: 3, title: 'Buku Ajar Pemrograman Web Lanjut.pdf', status: 'Diproses', pages: 110 }
-];
-
+const db = require('../config/database');
+const getDocumentById = id => db.prepare('SELECT * FROM documents WHERE id = ?').get(id);
 module.exports = {
-  getAllDocuments: () => documents
+  getAllDocuments: () => db.prepare('SELECT * FROM documents ORDER BY id DESC').all(),
+  getDocumentById,
+  createDocument: ({ title, status, pages }) => {
+    const result = db.prepare('INSERT INTO documents (title, status, pages) VALUES (?, ?, ?)').run(title, status, pages);
+    return getDocumentById(Number(result.lastInsertRowid));
+  },
+  updateDocument: (id, { title, status, pages }) => {
+    const result = db.prepare("UPDATE documents SET title=?, status=?, pages=?, updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=?").run(title, status, pages, id);
+    return result.changes ? getDocumentById(id) : null;
+  },
+  deleteDocument: id => db.prepare('DELETE FROM documents WHERE id=?').run(id).changes > 0,
+  checkConnection: () => db.prepare('SELECT 1 AS connected').get().connected === 1
 };

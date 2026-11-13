@@ -1,0 +1,70 @@
+// Jalankan: npm run test:frontend (setelah npm ci dan npx playwright install chromium)
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const { chromium } = require('playwright');
+const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'ruangpaham-browser-'));
+process.env.DATABASE_PATH = path.join(directory, 'test.sqlite');
+const app = require('../app');
+const db = require('../config/database');
+(async () => {
+  let browser, server;
+  try {
+    server = await new Promise(resolve => { const s = app.listen(0, '127.0.0.1', () => resolve(s)); });
+    browser = await chromium.launch({ headless: true, ...(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {}), args: ['--no-sandbox'] });
+    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    const errors = []; page.on('pageerror', e => errors.push(e.message));
+    await page.goto(`http://127.0.0.1:${server.address().port}`);
+    await page.waitForFunction(() => document.querySelector('#document-count').textContent === '3 dokumen' && !document.querySelector('#refresh').disabled);
+    await page.getByRole('button', { name: '+ Tambah Dokumen', exact: true }).click();
+    await page.getByLabel('Judul dokumen').fill('Materi Browser Test');
+    await page.getByLabel('Jumlah halaman').fill('15');
+    await page.getByRole('button', { name: 'Simpan', exact: true }).click();
+    await page.waitForFunction(() => document.querySelector('#feedback').textContent.includes('berhasil ditambahkan'));
+    let row = db.prepare('SELECT * FROM documents WHERE title=?').get('Materi Browser Test');
+    assert.equal(row.pages, 15);
+    let card = page.locator(`article[data-id="${row.id}"]`);
+    await card.getByRole('button', { name: 'Edit', exact: true }).click();
+    await page.getByLabel('Judul dokumen').fill('Materi Browser Revisi');
+    await page.getByLabel('Jumlah halaman').fill('30');
+    await page.getByLabel('Status', { exact: true }).selectOption('Diproses');
+    await page.getByRole('button', { name: 'Simpan', exact: true }).click();
+    await page.waitForFunction(() => document.querySelector('#feedback').textContent.includes('berhasil diperbarui'));
+    assert.equal(db.prepare('SELECT pages FROM documents WHERE id=?').get(row.id).pages, 30);
+    await page.reload();
+    await page.waitForFunction(() => !document.querySelector('#refresh').disabled);
+    assert.ok(await card.textContent().then(t => t.includes('Materi Browser Revisi')));
+    await card.getByRole('button', { name: 'Detail', exact: true }).click();
+    await page.locator('#detail-dialog').waitFor({ state: 'visible' });
+    assert.ok((await page.locator('#detail-content').textContent()).includes('Materi Browser Revisi'));
+    await page.getByRole('button', { name: 'Tutup', exact: true }).click();
+    page.once('dialog', d => d.dismiss());
+    await card.getByRole('button', { name: 'Hapus', exact: true }).click();
+    assert.ok(db.prepare('SELECT id FROM documents WHERE id=?').get(row.id));
+    page.once('dialog', d => d.accept());
+    await card.getByRole('button', { name: 'Hapus', exact: true }).click();
+    await page.waitForFunction(() => document.querySelector('#feedback').textContent.includes('berhasil dihapus'));
+    assert.equal(db.prepare('SELECT id FROM documents WHERE id=?').get(row.id), undefined);
+    // Network failures must keep existing cards and expose a retry message.
+    await page.route('**/api/dokumen', route => route.abort());
+    await page.getByRole('button', { name: 'Muat ulang' }).click();
+    await page.waitForFunction(() => document.querySelector('#feedback').textContent.includes('Daftar gagal dimuat'));
+    assert.equal(await page.locator('article').count(), 3);
+    await page.unroute('**/api/dokumen');
+    await page.getByRole('button', { name: 'Muat ulang' }).click();
+    await page.waitForFunction(() => !document.querySelector('#refresh').disabled);
+    await page.setViewportSize({ width: 390, height: 844 });
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
+    fs.mkdirSync(path.join(__dirname, '..', 'test-results'), { recursive: true });
+    await page.screenshot({ path: path.join(__dirname, '..', 'test-results', 'frontend-mobile.png'), fullPage: true });
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.screenshot({ path: path.join(__dirname, '..', 'test-results', 'frontend-desktop.png'), fullPage: true });
+    assert.deepEqual(errors, []);
+    console.log('PASS: browser CRUD, detail, reload, cancel delete, network error, mobile layout, and direct SQLite checks.');
+  } finally {
+    if (browser) await browser.close();
+    if (server) await new Promise(resolve => server.close(resolve));
+    db.close(); fs.rmSync(directory, { recursive: true, force: true });
+  }
+})().catch(error => { console.error(error); process.exitCode = 1; });
