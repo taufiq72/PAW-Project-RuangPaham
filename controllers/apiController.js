@@ -1,96 +1,30 @@
-const DocumentModel = require('../models/documentModel');
-const { generateDocumentChatResponse } = require('../services/gemini.service');
-
-exports.getStatus = (req, res) => {
-    res.status(200).json({ status: 'success', message: 'API RuangPaham is running' });
-};
-
-exports.getProducts = (req, res) => {
-    try {
-        const docs = DocumentModel.getAll ? DocumentModel.getAll() : [];
-        res.status(200).json({ success: true, data: docs });
-    } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
-    }
-};
-
-exports.createDocument = (req, res) => {
-    try {
-        const newDoc = DocumentModel.create ? DocumentModel.create(req.body) : req.body;
-        res.status(201).json({ success: true, data: newDoc });
-    } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
-    }
-};
-
-exports.getDocument = (req, res) => {
-    try {
-        const doc = DocumentModel.getById ? DocumentModel.getById(req.params.id) : null;
-        if (!doc) return res.status(404).json({ success: false, message: 'Dokumen tidak ditemukan' });
-        res.status(200).json({ success: true, data: doc });
-    } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
-    }
-};
-
-exports.updateDocument = (req, res) => {
-    try {
-        const updated = DocumentModel.update ? DocumentModel.update(req.params.id, req.body) : req.body;
-        res.status(200).json({ success: true, data: updated });
-    } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
-    }
-};
-
-exports.deleteDocument = (req, res) => {
-    try {
-        if (DocumentModel.delete) DocumentModel.delete(req.params.id);
-        res.status(200).json({ success: true, message: 'Dokumen berhasil dihapus' });
-    } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
-    }
-};
-
-exports.validateBody = (req, res, next) => {
-    next();
-};
-
+const Document = require('../models/documentModel');
+const { parseId, validateDocument } = require('../utils/documentValidation');
+exports.getStatus = (req, res) => res.json({ status: 'Success', message: 'Server RuangPaham AI Backend (Week 10) berjalan dengan baik', database: Document.checkConnection() ? 'connected' : 'disconnected', timestamp: new Date() });
 exports.validateId = (req, res, next) => {
-    next();
+  req.documentId = parseId(req.params.id);
+  if (!req.documentId) return res.status(400).json({ status: 'Error', message: 'ID harus bilangan bulat positif.' });
+  next();
 };
-
-// ==========================================
-// PPAW Week 10: Controller AI Chat Assistant
-// ==========================================
-exports.handleChat = async (req, res) => {
-    try {
-        const { message, documentId } = req.body;
-
-        // Konteks dokumen aktif untuk RAG RuangPaham AI
-        const documentTitle = "Modul_PPAW_Minggu10.pdf";
-        const documentContext = "Halaman 1: RuangPaham AI adalah platform asisten belajar interaktif berbasis dokumen perkuliahan. Halaman 3: Fitur utama meliputi unggah PDF, pemilihan dokumen aktif, dan tanya jawab berbasis RAG dengan rujukan halaman.";
-
-        if (!documentContext) {
-            return res.status(400).json({
-                success: false,
-                message: 'Silakan pilih dokumen aktif terlebih dahulu.'
-            });
-        }
-
-        const reply = await generateDocumentChatResponse(message, documentTitle, documentContext);
-
-        return res.status(200).json({
-            success: true,
-            data: {
-                reply,
-                sourceDocument: documentTitle
-            }
-        });
-    } catch (error) {
-        console.error('Chat Controller Error:', error);
-        return res.status(500).json({
-            success: false,
-            message: error.message || 'Terjadi kesalahan pada server AI.'
-        });
-    }
+exports.validateBody = (req, res, next) => {
+  const { errors, data } = validateDocument(req.body);
+  if (Object.keys(errors).length) return res.status(400).json({ status: 'Error', message: 'Data dokumen tidak valid.', errors });
+  req.documentData = data;
+  next();
 };
+const notFound = res => res.status(404).json({ status: 'Error', message: 'Dokumen tidak ditemukan.' });
+exports.getProducts = (req, res) => res.json({ status: 'Success', data: Document.getAllDocuments() });
+exports.getDocument = (req, res) => {
+  const data = Document.getDocumentById(req.documentId);
+  return data ? res.json({ status: 'Success', data }) : notFound(res);
+};
+exports.createDocument = (req, res) => {
+  const data = Document.createDocument(req.documentData);
+  res.location(`${req.baseUrl}${req.path.replace(/\/$/, '')}/${data.id}`).status(201).json({ status: 'Success', message: 'Dokumen berhasil ditambahkan.', data });
+};
+exports.updateDocument = (req, res) => {
+  const data = Document.updateDocument(req.documentId, req.documentData);
+  return data ? res.json({ status: 'Success', message: 'Dokumen berhasil diperbarui.', data }) : notFound(res);
+};
+exports.deleteDocument = (req, res) => Document.deleteDocument(req.documentId)
+  ? res.json({ status: 'Success', message: 'Dokumen berhasil dihapus.' }) : notFound(res);

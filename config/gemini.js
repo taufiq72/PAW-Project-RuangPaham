@@ -1,9 +1,6 @@
-const { GoogleGenerativeAI } = require('@google/generative-ai');
-require('dotenv').config();
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-
-// Ganti model menjadi 'gemini-1.5-flash-latest' atau 'gemini-pro'
-const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
-
-module.exports = { genAI, model };
+// Server-only configuration. Never expose this object through an API.
+exports.getGeminiConfig = () => ({
+  apiKey: process.env.GEMINI_API_KEY?.trim(),
+  model: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
+  timeoutMs: 20000
+});

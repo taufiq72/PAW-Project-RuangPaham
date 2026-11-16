@@ -39,6 +39,7 @@ function render(documents) {
     fragment.append(card);
   });
   $('document-list').replaceChildren(fragment);
+  window.dispatchEvent(new CustomEvent('documents-updated', { detail: documents }));
   $('document-count').textContent = `${documents.length} dokumen`;
   $('empty-state').hidden = documents.length > 0;
 }

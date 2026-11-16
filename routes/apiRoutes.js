@@ -1,13 +1,12 @@
 const router = require('express').Router();
 const controller = require('../controllers/apiController');
-const validateChatInput = require('../middlewares/validateChatInput');
 
 router.get('/status', controller.getStatus);
 
 // ==========================================
 // PPAW Week 10: Endpoint AI Chat Assistant
 // ==========================================
-router.post('/chat', validateChatInput, controller.handleChat);
+router.use('/chat', require('./chat.routes'));
 
 // Resource sesuai tema project; /produk dipertahankan sebagai alias Week 7.
 for (const resource of ['/dokumen', '/produk']) {
