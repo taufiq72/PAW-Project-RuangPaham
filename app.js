@@ -1,27 +1,42 @@
-const fs = require('node:fs');
-const path = require('node:path');
-const envPath = path.join(__dirname, '.env');
-if (fs.existsSync(envPath)) process.loadEnvFile(envPath);
 const express = require('express');
-const logger = require('./middlewares/loggerMiddleware');
+const path = require('path');
+require('dotenv').config();
+
+// Import Middleware & Routes yang sudah ada di project Anda
+const loggerMiddleware = require('./middlewares/loggerMiddleware');
+const apiRoutes = require('./routes/apiRoutes');
+
 const app = express();
+const PORT = process.env.PORT || 3000;
+
+// Konfigurasi View Engine EJS
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
-app.use(logger);
-app.use(express.json({ limit: '100kb' }));
-app.use(express.urlencoded({ extended: false, limit: '100kb' }));
+
+// Middleware Global
+app.use(loggerMiddleware); // Mempertahankan logger tugas sebelumnya
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
-app.use('/api', require('./routes/apiRoutes'));
-app.use('/', require('./routes/webRoutes'));
-app.use((req, res) => res.status(404).json({ status: 'Error', message: 'Halaman atau endpoint tidak ditemukan.' }));
-app.use((error, req, res, next) => {
-  if (error.type === 'entity.parse.failed') return res.status(400).json({ status: 'Error', message: 'Format JSON tidak valid.' });
-  if (error.type === 'entity.too.large') return res.status(413).json({ status: 'Error', message: 'Request terlalu besar.' });
-  console.error(error);
-  res.status(500).json({ status: 'Error', message: 'Terjadi kesalahan pada server.' });
+
+// Pendaftaran Endpoint API
+app.use('/api', apiRoutes);
+
+// Route Halaman Utama (Frontend Web)
+app.get('/', (req, res) => {
+    res.render('index', { 
+        title: 'RuangPaham AI — Asisten Belajar Interaktif' 
+    });
 });
-if (require.main === module) {
-  const port = process.env.PORT || 3000;
-  app.listen(port, () => console.log(`Server RuangPaham AI berjalan di http://localhost:${port}`));
-}
+
+// Penanganan Route 404 (Not Found)
+app.use((req, res) => {
+    res.status(404).send('Halaman RuangPaham tidak ditemukan.');
+});
+
+// Menjalankan Server
+app.listen(PORT, () => {
+    console.log(`Server RuangPaham AI berjalan di http://localhost:${PORT}`);
+});
+
 module.exports = app;

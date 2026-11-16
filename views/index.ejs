@@ -1,58 +1,153 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title><%= title %></title>
-  <link rel="stylesheet" href="/styles.css">
-  <script src="https://cdn.tailwindcss.com"></script>
-  <style>button:disabled{opacity:.5;cursor:wait}dialog::backdrop{background:#020617cc}input,select{color-scheme:dark}[hidden]{display:none!important}</style>
-  <script src="/documents.js" defer></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= typeof title !== 'undefined' ? title : 'RuangPaham AI' %></title>
+    <!-- Tailwind CSS CDN -->
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 </head>
-<body class="bg-gray-900 text-gray-100 min-h-screen">
-  <div class="max-w-5xl mx-auto p-6">
-    <header class="flex flex-wrap gap-3 justify-between items-center py-4 border-b border-gray-700 mb-8">
-      <a href="/" class="text-2xl font-bold text-indigo-400">RuangPaham AI</a>
-      <span class="bg-indigo-900 text-indigo-200 text-xs px-3 py-1 rounded-full">Week 10 · Katalog Dokumen</span>
-    </header>
-    <main>
-      <div class="flex flex-wrap justify-between gap-4 items-center mb-6">
-        <div><h1 class="text-2xl font-semibold mb-2">Materi perkuliahan</h1><p class="text-gray-400">Kelola judul, jumlah halaman, dan status dokumen belajarmu.</p></div>
-        <button id="add-document" class="bg-indigo-600 hover:bg-indigo-500 px-5 py-3 rounded-lg font-medium">+ Tambah Dokumen</button>
-      </div>
-      <p id="feedback" role="status" aria-live="polite" class="mb-4 text-indigo-200"></p>
-      <div class="flex items-center justify-between mb-4"><p id="document-count" class="text-gray-400"><%= documents.length %> dokumen</p><button id="refresh" class="text-indigo-300 underline">Muat ulang</button></div>
-      <div id="document-list" class="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <% documents.forEach(doc => { %>
-          <article data-id="<%= doc.id %>" class="bg-gray-800 p-5 rounded-xl border border-gray-700 shadow-lg">
-            <h2 class="font-semibold text-lg text-white mb-2 break-words"><%= doc.title %></h2>
-            <p class="text-sm text-gray-400">Total Halaman: <%= doc.pages %></p>
-            <p class="text-sm text-indigo-300 mt-3"><%= doc.status %></p>
-            <div class="flex gap-4 mt-5"><button data-action="detail" class="text-indigo-300 underline">Detail</button><button data-action="edit" class="text-indigo-300 underline">Edit</button><button data-action="delete" class="text-red-300 underline">Hapus</button></div>
-          </article>
-        <% }) %>
-      </div>
-      <p id="empty-state" class="p-10 text-center text-gray-400" <%= documents.length ? 'hidden' : '' %>>Belum ada dokumen. Tambahkan materi pertamamu.</p>
-      <p class="text-xs text-gray-500 mt-8">Katalog ini menyimpan metadata dokumen. Unggah file dan pemrosesan AI belum tersedia.</p>
+<body class="bg-gray-100 min-h-screen flex flex-col">
+
+    <!-- Navbar Header -->
+    <nav class="bg-blue-900 text-white shadow-md py-4 px-6">
+        <div class="container mx-auto flex justify-between items-center">
+            <h1 class="text-xl font-bold">RuangPaham AI</h1>
+            <span class="text-xs bg-blue-700 px-3 py-1 rounded font-medium">PPAW Week 10 — Project Berkelanjutan</span>
+        </div>
+    </nav>
+
+    <!-- Main Content Layout -->
+    <main class="container mx-auto px-4 py-6 flex-1 grid grid-cols-1 md:grid-cols-3 gap-6">
+        
+        <!-- Sidebar: Info Dokumen Aktif -->
+        <div class="bg-white p-5 rounded-lg shadow-sm border md:col-span-1 h-fit">
+            <h2 class="font-bold text-gray-800 text-base mb-3">Dokumen Perkuliahan Aktif</h2>
+            <div class="p-3 bg-blue-50 border border-blue-200 rounded-md mb-4">
+                <p class="font-semibold text-blue-900 text-sm">Modul_PPAW_Minggu10.pdf</p>
+                <span class="text-xs text-green-600 font-semibold">● Status: Siap (RAG Active)</span>
+            </div>
+            <div class="text-xs text-gray-600 space-y-2">
+                <p><strong>Ketentuan AI Assistant:</strong></p>
+                <ul class="list-disc pl-4 space-y-1">
+                    <li>Jawaban wajib bersumber dari dokumen aktif.</li>
+                    <li>Menyertakan rujukan halaman sumber.</li>
+                    <li>Menolak secara sopan jika informasi tidak ditemukan dalam dokumen.</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Chat Assistant Section -->
+        <div class="bg-white rounded-lg shadow-sm border md:col-span-2 flex flex-col h-[550px]">
+            <!-- Chat Header -->
+            <div class="bg-gray-50 px-4 py-3 border-b font-medium text-gray-700 flex justify-between items-center text-sm">
+                <span>Chat Assistant (Google Gemini 1.5 Flash)</span>
+                <span class="text-xs text-gray-500">Domain: Dokumen Perkuliahan</span>
+            </div>
+
+            <!-- Chat Messages Container -->
+            <div id="chat-messages" class="flex-1 p-4 overflow-y-auto space-y-4 bg-gray-50 text-sm">
+                <div class="flex justify-start">
+                    <div class="bg-white border text-gray-800 p-3 rounded-lg shadow-sm max-w-[85%]">
+                        Halo! Silakan ajukan pertanyaan seputar materi di dalam dokumen aktif. AI akan memberikan penjelasan beserta rujukan halamannya.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Loading Indicator -->
+            <div id="loading-indicator" class="hidden px-4 py-2 text-gray-500 text-xs italic bg-gray-50 border-t">
+                RuangPaham AI sedang mencari informasi dalam dokumen...
+            </div>
+
+            <!-- Chat Input Form -->
+            <form id="chat-form" class="p-3 bg-white border-t flex gap-2">
+                <input type="hidden" id="document-id" value="doc_active_10">
+                <input 
+                    type="text" 
+                    id="user-input" 
+                    placeholder="Tanyakan sesuatu dari materi dokumen..." 
+                    class="flex-1 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
+                    autocomplete="off"
+                    required
+                >
+                <button type="submit" class="bg-blue-900 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-blue-800 transition">
+                    Kirim
+                </button>
+            </form>
+        </div>
+
     </main>
-  </div>
-  <dialog id="document-dialog" class="bg-gray-800 text-gray-100 rounded-2xl p-6 w-full max-w-lg border border-gray-600">
-    <form id="document-form">
-      <h2 id="form-title" class="text-xl font-semibold mb-5">Tambah Dokumen</h2>
-      <input type="hidden" id="document-id">
-      <label for="title" class="block mb-2">Judul dokumen</label>
-      <input id="title" name="title" required maxlength="200" class="w-full bg-gray-900 border border-gray-600 rounded-lg p-3 mb-4" placeholder="Contoh: Modul Basis Data.pdf">
-      <label for="pages" class="block mb-2">Jumlah halaman</label>
-      <input id="pages" name="pages" type="number" min="1" max="10000" step="1" required class="w-full bg-gray-900 border border-gray-600 rounded-lg p-3 mb-4">
-      <label for="status" class="block mb-2">Status</label>
-      <select id="status" name="status" class="w-full bg-gray-900 border border-gray-600 rounded-lg p-3 mb-4"><option>Siap</option><option>Diproses</option></select>
-      <p id="form-error" role="alert" class="text-red-300 mb-4"></p>
-      <div class="flex justify-end gap-3"><button type="button" id="cancel" class="px-4 py-2 border border-gray-500 rounded-lg">Batal</button><button type="submit" id="save" class="px-4 py-2 bg-indigo-600 rounded-lg">Simpan</button></div>
-    </form>
-  </dialog>
-  <dialog id="detail-dialog" class="bg-gray-800 text-gray-100 rounded-2xl p-6 w-full max-w-lg border border-gray-600">
-    <h2 class="text-xl font-semibold mb-4">Detail Dokumen</h2><dl id="detail-content" class="space-y-3 break-words"></dl>
-    <form method="dialog"><button class="mt-6 px-4 py-2 bg-indigo-600 rounded-lg">Tutup</button></form>
-  </dialog>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t py-4 text-center text-xs text-gray-500">
+        Kelompok 5 — Pengembangan Aplikasi Web (PPAW) Universitas Muhammadiyah Yogyakarta
+    </footer>
+
+    <!-- Frontend Script Fetch API -->
+    <script>
+        const chatForm = document.getElementById('chat-form');
+        const userInput = document.getElementById('user-input');
+        const chatMessages = document.getElementById('chat-messages');
+        const loadingIndicator = document.getElementById('loading-indicator');
+        const documentIdInput = document.getElementById('document-id');
+
+        chatForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const message = userInput.value.trim();
+            const documentId = documentIdInput.value;
+            if (!message) return;
+
+            // Tampilkan pesan user
+            appendMessage(message, 'user');
+            userInput.value = '';
+            loadingIndicator.classList.remove('hidden');
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+
+            try {
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message, documentId })
+                });
+
+                const result = await response.json();
+                loadingIndicator.classList.add('hidden');
+
+                if (result.success) {
+                    appendMessage(result.data.reply, 'ai', result.data.sourceDocument);
+                } else {
+                    appendMessage(result.message || 'Terjadi kesalahan pada server.', 'ai');
+                }
+            } catch (error) {
+                loadingIndicator.classList.add('hidden');
+                appendMessage('Gagal terhubung ke server backend.', 'ai');
+            }
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        });
+
+        function appendMessage(text, sender, sourceDoc) {
+            const div = document.createElement('div');
+            div.className = `flex ${sender === 'user' ? 'justify-end' : 'justify-start'}`;
+            
+            const bubble = document.createElement('div');
+            bubble.className = sender === 'user' 
+                ? 'bg-blue-900 text-white p-3 rounded-lg max-w-[85%] whitespace-pre-line' 
+                : 'bg-white border text-gray-800 p-3 rounded-lg shadow-sm max-w-[85%] whitespace-pre-line';
+            
+            bubble.textContent = text;
+
+            // Tambahkan badge rujukan halaman jika dari AI dan informasi ditemukan
+            if (sender === 'ai' && sourceDoc && !text.includes("Informasi tidak ditemukan")) {
+                const badge = document.createElement('div');
+                badge.className = 'mt-2 pt-2 border-t text-xs text-blue-600 font-semibold cursor-pointer hover:underline';
+                badge.textContent = `📄 Sumber: ${sourceDoc} (Klik untuk verifikasi halaman)`;
+                badge.onclick = () => alert(`Membuka rujukan halaman pada dokumen: ${sourceDoc}`);
+                bubble.appendChild(badge);
+            }
+
+            div.appendChild(bubble);
+            chatMessages.appendChild(div);
+        }
+    </script>
 </body>
 </html>
