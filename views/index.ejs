@@ -35,13 +35,17 @@
       <p id="empty-state" class="p-10 text-center text-gray-400" <%= documents.length ? 'hidden' : '' %>>Belum ada dokumen. Tambahkan materi pertamamu.</p>
       <section id="assistant" aria-labelledby="assistant-title">
         <div class="chat-heading"><h2 id="assistant-title">Tanya RuangPaham</h2><span>Google Gemini</span></div>
-        <p>Tanyakan judul, status, jumlah halaman, atau cara memakai katalog. Isi PDF belum tersimpan.</p>
+        <p>Pilih materi PDF berstatus Siap untuk bertanya tentang isinya. Pertanyaan dan teks yang relevan dikirim ke Gemini saat mode Isi PDF digunakan.</p>
+        <label for="chat-mode">Mode pertanyaan</label>
+        <select id="chat-mode"><option value="catalog">Katalog</option><option value="pdf">Isi PDF</option></select>
         <label for="chat-document">Sumber informasi</label>
         <select id="chat-document"><option value="">Semua dokumen</option></select>
+        <p id="chat-active" role="status"></p>
         <div id="chat-messages" role="log" aria-live="polite" aria-label="Percakapan"><p class="chat-bubble">Halo! Dokumen apa yang ingin kamu cari di RuangPaham?</p></div>
-        <p id="chat-loading" role="status" hidden>Gemini sedang memproses…</p>
+        <p id="chat-loading" role="status" hidden>Memproses pertanyaan…</p>
         <p id="chat-error" role="alert"></p>
         <form id="chat-form"><label for="chat-message">Pertanyaan</label><div class="chat-input"><input id="chat-message" maxlength="1000" required placeholder="Apa saja dokumen yang tersedia?" autocomplete="off"><button id="chat-send">Kirim</button></div></form>
+        <button id="chat-summary" type="button">Ringkas Materi</button>
       </section>
     </main>
   </div>
@@ -55,6 +59,9 @@
       <input id="pages" name="pages" type="number" min="1" max="10000" step="1" required class="w-full bg-gray-900 border border-gray-600 rounded-lg p-3 mb-4">
       <label for="status" class="block mb-2">Status</label>
       <select id="status" name="status" class="w-full bg-gray-900 border border-gray-600 rounded-lg p-3 mb-4"><option>Siap</option><option>Diproses</option></select>
+      <label for="document-pdf">Lampiran PDF (opsional, maksimal 10 MB)</label>
+      <input id="document-pdf" type="file" accept="application/pdf,.pdf">
+      <p id="pdf-hint">Gunakan PDF berbasis teks. Jumlah halaman PDF dihitung otomatis.</p>
       <p id="form-error" role="alert" class="text-red-300 mb-4"></p>
       <div class="flex justify-end gap-3"><button type="button" id="cancel" class="px-4 py-2 border border-gray-500 rounded-lg">Batal</button><button type="submit" id="save" class="px-4 py-2 bg-indigo-600 rounded-lg">Simpan</button></div>
     </form>

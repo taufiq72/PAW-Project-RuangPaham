@@ -16,6 +16,43 @@ db.exec(`CREATE TABLE IF NOT EXISTS documents (
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 )`);
+db.exec(`PRAGMA foreign_keys = ON;
+CREATE TABLE IF NOT EXISTS document_pdfs (
+  document_id INTEGER PRIMARY KEY REFERENCES documents(id) ON DELETE CASCADE,
+  content BLOB NOT NULL,
+  revision TEXT NOT NULL,
+  state TEXT NOT NULL DEFAULT 'Diproses' CHECK(state IN ('Diproses','Siap','Gagal')),
+  error TEXT
+);
+CREATE TABLE IF NOT EXISTS pdf_pages (
+  document_id INTEGER NOT NULL REFERENCES document_pdfs(document_id) ON DELETE CASCADE,
+  page INTEGER NOT NULL,
+  text TEXT NOT NULL,
+  PRIMARY KEY(document_id,page)
+);
+CREATE TABLE IF NOT EXISTS pdf_answers (
+  id TEXT PRIMARY KEY,
+  document_id INTEGER NOT NULL REFERENCES document_pdfs(document_id) ON DELETE CASCADE,
+  revision TEXT NOT NULL,
+  helpful INTEGER CHECK(helpful IN (0,1))
+);
+CREATE TABLE IF NOT EXISTS pdf_vectors (
+  document_id INTEGER NOT NULL REFERENCES document_pdfs(document_id) ON DELETE CASCADE,
+  model TEXT NOT NULL,
+  vectors TEXT NOT NULL,
+  PRIMARY KEY(document_id,model)
+);
+CREATE INDEX IF NOT EXISTS pdf_answers_document ON pdf_answers(document_id);`);
+// Upgrade databases created by the initial attachment-only implementation.
+const pdfColumns = db.prepare('PRAGMA table_info(document_pdfs)').all();
+if (!pdfColumns.some(column => column.name === 'revision')) {
+  db.exec(`BEGIN;
+  ALTER TABLE document_pdfs ADD COLUMN revision TEXT;
+  ALTER TABLE document_pdfs ADD COLUMN state TEXT NOT NULL DEFAULT 'Diproses' CHECK(state IN ('Diproses','Siap','Gagal'));
+  ALTER TABLE document_pdfs ADD COLUMN error TEXT;
+  UPDATE document_pdfs SET revision=lower(hex(randomblob(4)) || '-' || hex(randomblob(2)) || '-' || hex(randomblob(2)) || '-' || hex(randomblob(2)) || '-' || hex(randomblob(6)));
+  COMMIT;`);
+}
 if (!exists) {
   const insert = db.prepare('INSERT INTO documents (title, status, pages) VALUES (?, ?, ?)');
   db.exec('BEGIN');

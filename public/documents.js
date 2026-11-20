@@ -2,10 +2,11 @@
 const $ = id => document.getElementById(id);
 const dialog = $('document-dialog');
 const form = $('document-form');
+let poll;
 async function api(path = '', options = {}) {
   const response = await fetch(`/api/dokumen${path}`, {
     ...options,
-    headers: { 'Content-Type': 'application/json', ...options.headers }
+    headers: options.body instanceof FormData ? options.headers : { 'Content-Type': 'application/json', ...options.headers }
   });
   const result = await response.json();
   if (!response.ok) throw new Error(result.errors ? Object.values(result.errors).join(' ') : result.message || 'Request gagal.');
@@ -25,7 +26,7 @@ function render(documents) {
     pages.textContent = `Total Halaman: ${doc.pages}`;
     const status = document.createElement('p');
     status.className = 'text-sm text-indigo-300 mt-3';
-    status.textContent = doc.status;
+    status.textContent = doc.has_pdf ? `PDF: ${doc.pdf_status}${doc.pdf_error ? ` — ${doc.pdf_error}` : ''}` : doc.status;
     const actions = document.createElement('div');
     actions.className = 'flex gap-4 mt-5';
     [['detail', 'Detail'], ['edit', 'Edit'], ['delete', 'Hapus']].forEach(([action, label]) => {
@@ -42,6 +43,10 @@ function render(documents) {
   window.dispatchEvent(new CustomEvent('documents-updated', { detail: documents }));
   $('document-count').textContent = `${documents.length} dokumen`;
   $('empty-state').hidden = documents.length > 0;
+  clearTimeout(poll);
+  if (documents.some(d => d.pdf_status === 'Diproses')) poll = setTimeout(async () => {
+    try { render((await api()).data); } catch { /* Muat ulang tersedia secara manual. */ }
+  }, 1000);
 }
 async function refresh(message = '') {
   $('refresh').disabled = true;
@@ -50,18 +55,29 @@ async function refresh(message = '') {
   catch (error) { $('feedback').textContent = `${message ? message + ' ' : ''}Daftar gagal dimuat: ${error.message} Klik Muat ulang untuk mencoba lagi.`; }
   finally { $('refresh').disabled = false; }
 }
+function syncPdfFields() {
+  const automatic = Boolean($('document-pdf').files[0]) || form.dataset.hasPdf === 'true';
+  for (const id of ['pages', 'status']) {
+    $(id).disabled = automatic;
+    $(id).hidden = automatic;
+    form.querySelector(`label[for="${id}"]`).hidden = automatic;
+  }
+}
 function openForm(doc) {
   form.reset();
   $('document-id').value = doc ? doc.id : '';
   $('form-title').textContent = doc ? 'Edit Dokumen' : 'Tambah Dokumen';
   $('form-error').textContent = '';
-  if (doc) { $('title').value = doc.title; $('pages').value = doc.pages; $('status').value = doc.status; }
+  form.dataset.hasPdf = String(Boolean(doc?.has_pdf));
+  if (doc) { $('title').value = doc.title; $('pages').value = doc.pages; $('status').value = doc.status === 'Siap' ? 'Siap' : 'Diproses'; }
+  syncPdfFields();
   dialog.showModal();
   $('title').focus();
 }
 $('add-document').addEventListener('click', () => openForm());
 $('cancel').addEventListener('click', () => dialog.close());
 $('refresh').addEventListener('click', () => refresh());
+$('document-pdf').addEventListener('change', syncPdfFields);
 form.addEventListener('submit', async event => {
   event.preventDefault();
   const id = $('document-id').value;
@@ -69,7 +85,16 @@ form.addEventListener('submit', async event => {
   $('cancel').disabled = true;
   $('form-error').textContent = '';
   try {
-    const result = await api(id ? `/${id}` : '', { method: id ? 'PUT' : 'POST', body: JSON.stringify({ title: $('title').value, pages: Number($('pages').value), status: $('status').value }) });
+    const pdf = $('document-pdf').files[0];
+    const payload = { title: $('title').value, pages: pdf ? 1 : Number($('pages').value), status: pdf ? 'Diproses' : $('status').value };
+    let body = JSON.stringify(payload);
+    if (pdf) {
+      if (pdf.size > 10 * 1024 * 1024) throw new Error('Ukuran PDF maksimal 10 MB.');
+      body = new FormData();
+      for (const [name, value] of Object.entries(payload)) body.append(name, value);
+      body.append('pdf', pdf);
+    }
+    const result = await api(id ? `/${id}` : '', { method: id ? 'PUT' : 'POST', body });
     dialog.close();
     await refresh(result.message);
   } catch (error) { $('form-error').textContent = error.message; }
@@ -96,6 +121,12 @@ $('document-list').addEventListener('click', async event => {
           const dd = document.createElement('dd'); dd.textContent = value;
           $('detail-content').append(dt, dd);
         });
+        if (data.has_pdf) {
+          const link = document.createElement('a');
+          link.href = `/api/dokumen/${data.id}/pdf?revision=${data.pdf_revision}`;
+          link.target = '_blank'; link.rel = 'noopener noreferrer'; link.textContent = 'Buka PDF';
+          const entry = document.createElement('dd'); entry.append(link); $('detail-content').append(entry);
+        }
         $('detail-dialog').showModal();
       }
     }

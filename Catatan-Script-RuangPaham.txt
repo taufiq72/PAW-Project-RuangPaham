@@ -1,0 +1,100 @@
+CATATAN SCRIPT RUANGPAHAM AI
+===========================
+
+1. APA ITU RUANGPAHAM?
+---------------------
+RuangPaham adalah aplikasi web untuk mengelola katalog dokumen perkuliahan.
+Pengguna bisa menambah dokumen, melihat detail, mengedit, menghapus, dan
+menanyakan informasi katalog lewat fitur Tanya RuangPaham.
+
+Aplikasi memakai Node.js dan Express untuk server, EJS untuk membuat halaman
+HTML, JavaScript dan CSS untuk interaksi dan tampilan, serta SQLite untuk
+menyimpan data. SQLite menyimpan metadata, lampiran PDF, serta teks hasil
+ekstraksi per halaman. Status PDF: Diproses, Siap, atau Gagal.
+
+2. BAGIAN-BAGIAN SCRIPT
+----------------------
+Nama file di bawah mengikuti struktur folder proyek.
+
+app.js
+  Titik masuk aplikasi. Membaca .env jika ada, mengatur Express dan EJS,
+  memuat aset dari folder public, memasang rute web/API, dan menangani
+  kesalahan umum. Port bawaan: 3000.
+
+config/database.js dan models/documentModel.js
+  File konfigurasi membuka SQLite, membuat tabel, dan menambahkan tiga
+  dokumen contoh saat tabel pertama kali dibuat. Model menyediakan operasi
+  baca, tambah, ubah, dan hapus data dokumen.
+
+routes/webRoutes.js, controllers/homeController.js, dan views/index.ejs
+  Menampilkan halaman utama. Controller mengambil daftar dokumen; template
+  EJS menampilkan kartu dokumen, formulir, dan panel Tanya RuangPaham.
+
+routes/apiRoutes.js, controllers/apiController.js, dan utils/documentValidation.js
+  Menangani API katalog (/api/dokumen) serta memvalidasi data dokumen dan ID.
+  /api/produk adalah alias lama. /api/status untuk memeriksa server dan database.
+
+public/documents.js, public/chat.js, dan public/styles.css
+  documents.js mengelola daftar, formulir, dan detail dokumen di browser.
+  chat.js mengirim pertanyaan, menampilkan status pemrosesan dan jawaban,
+  serta mempertahankan teks pertanyaan jika gagal agar bisa dikirim ulang.
+  styles.css mengatur tampilan halaman, termasuk gelembung percakapan.
+
+routes/chat.routes.js, middlewares/validateChatInput.js,
+controllers/chatController.js, dan services/gemini.service.js
+  Rute menerima POST /api/chat. Middleware memeriksa pesan (1-1000 karakter
+  setelah pesan kosong ditolak; batas panjang diperiksa sebelum dipangkas)
+  dan ID dokumen opsional (bilangan bulat positif). Controller memanggil
+  service dan mengembalikan jawaban atau pesan kesalahan dalam JSON.
+  Service menentukan cara menjawab pertanyaan dan menyusun jawaban.
+
+config/gemini.js dan .env.example
+  Berisi pengaturan model dan contoh konfigurasi lokal. API key dibaca di
+  server dari GEMINI_API_KEY. Jangan taruh API key di kode browser atau Git.
+
+middlewares/loggerMiddleware.js dan tests/
+  Logger mencatat waktu, metode, rute, dan status HTTP. Folder tests berisi
+  pengujian API katalog, alur chatbot, dan interaksi di browser.
+
+3. ALUR TANYA RUANGPAHAM
+------------------------
+1) Pengguna mengetik pertanyaan dan bisa memilih satu dokumen di menu
+   Sumber informasi. Browser mengirim pesan dan ID dokumen jika dipilih.
+2) Server memvalidasi masukan. Jika ID yang diminta tidak ada, server
+   mengembalikan pesan bahwa dokumen tidak ditemukan.
+3) Pertanyaan yang cocok dengan pola sederhana dijawab dari SQLite. Contoh:
+   - "Ada berapa dokumen?" -> jumlah dokumen dalam pilihan saat ini.
+   - "Apa saja dokumen yang tersedia?" -> daftar judul, halaman, dan status.
+   - "Dokumen mana yang siap?" -> dokumen yang berstatus Siap.
+   - "Berapa lembar?" atau "Statusnya?" -> halaman atau status dokumen
+     yang dipilih. Jika belum ada pilihan, chatbot meminta kejelasan.
+   Pertanyaan seperti ini tidak memerlukan API key Gemini.
+4) Untuk pertanyaan relevan lain, server dapat mengirim pertanyaan dan
+   metadata katalog ke Gemini. Gemini mengembalikan jenis jawaban (misalnya
+   informasi dokumen atau fitur) dan ID yang dianggap relevan. Server
+   memeriksa jenis jawaban dan ID, lalu menyusun teks dari data SQLite atau
+   teks fitur yang sudah disiapkan. Teks bebas dari model tidak ditampilkan.
+5) Browser menampilkan jawaban sebagai teks. Jika layanan gagal atau hasil
+   model tidak valid, browser menampilkan pesan kesalahan.
+
+Perbaikan utama: pertanyaan sederhana sebelumnya bisa ditolak oleh filter
+kata kunci atau mendapat format umum. Sekarang "Berapa lembar?" dijawab
+dengan jumlah halaman saja, sementara "Statusnya?" dijawab dengan status.
+
+4. MODE ISI PDF, BATASAN, DAN CARA MENCOBA
+--------------------------
+- Saat PDF diunggah, pdfIndex.service.js menjalankan pdfExtract.worker.js
+  untuk mengambil teks per halaman. Hanya satu PDF aktif menjadi sumber.
+  pdfChat.service.js mengambil teks relevan, memanggil Gemini, dan memeriksa
+  kutipan sebelum menampilkan tautan halaman. Untuk PDF panjang, embedding
+  dapat diaktifkan secara opsional; pencarian kata kunci tetap tersedia.
+- Dari folder proyek, jalankan npm.cmd ci lalu npm.cmd start. Buka
+  http://localhost:3000. Klik Tambah Dokumen dan unggah PDF berbasis teks
+  maksimal 10 MB. Setelah status Siap, pilih mode Isi PDF dan pilih materi.
+  Coba bertanya atau klik Ringkas Materi. Rujukan membuka halaman PDF.
+- Riwayat tampil kembali setelah reload pada tab yang sama. Pesan lama
+  tidak menjadi konteks pertanyaan baru. Jawaban dapat dinilai satu kali.
+- Untuk pertanyaan yang memerlukan Gemini, salin .env.example ke .env dan isi
+  GEMINI_API_KEY di file lokal tersebut. Mulai ulang server setelah mengubahnya.
+- Gunakan npm test untuk tes backend. Tes otomatis memakai respons Gemini
+  simulasi, sehingga bukan bukti bahwa API Gemini langsung sudah berhasil.
