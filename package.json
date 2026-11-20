@@ -15,7 +15,8 @@
   "type": "commonjs",
   "dependencies": {
     "ejs": "^7.0.2",
-    "express": "^5.3.0"
+    "express": "^5.3.0",
+    "pdfjs-dist": "5.7.284"
   },
   "devDependencies": {
     "@playwright/test": "^1.65.0",

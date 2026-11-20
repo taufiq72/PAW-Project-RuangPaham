@@ -8,6 +8,7 @@ const app = express();
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 app.use(logger);
+app.use(require('./middlewares/studentAccess'));
 app.use(express.json({ limit: '100kb' }));
 app.use(express.urlencoded({ extended: false, limit: '100kb' }));
 app.use(express.static(path.join(__dirname, 'public')));
@@ -22,6 +23,10 @@ app.use((error, req, res, next) => {
 });
 if (require.main === module) {
   const port = process.env.PORT || 3000;
-  app.listen(port, () => console.log(`Server RuangPaham AI berjalan di http://localhost:${port}`));
+  const host = process.env.HOST || 'localhost';
+  app.listen(port, host, () => {
+    console.log(`Server RuangPaham AI berjalan di http://${host}:${port}`);
+    void require('./services/pdfIndex.service').processPending();
+  });
 }
 module.exports = app;
